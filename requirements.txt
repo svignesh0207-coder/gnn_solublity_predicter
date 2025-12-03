@@ -1,0 +1,11 @@
+streamlit
+torch==2.4.0
+torchvision
+torchaudio
+torch-geometric
+torch-scatter
+torch-sparse
+torch-cluster
+torch-spline-conv
+rdkit-pypi
+numpy
