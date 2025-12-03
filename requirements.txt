@@ -1,7 +1,5 @@
 streamlit
-torch==2.4.0
-torchvision
-torchaudio
+torch
 torch-geometric
 torch-scatter
 torch-sparse
