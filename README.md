@@ -6,7 +6,7 @@ Predicts aqueous solubility (logS) of any small molecule from its SMILES string 
 - Trained on the standard **ESOL (Delaney) dataset** (1 128 compounds)  
 - 4-layer GCN with global mean + max pooling  
 - No pre-trained models, no hand-crafted descriptors — pure message passing on molecular graphs  
-- Fully interactive web app (Streamlit)
+- Fully interactive web app (Hugging face)
 
 ### Performance 
 | Metric       | Value  | Note                                 |
@@ -23,3 +23,4 @@ Predicts aqueous solubility (logS) of any small molecule from its SMILES string 
 - PyTorch + PyTorch Geometric  
 - RDKit (featurization)  
 - Streamlit (deployment)
+
