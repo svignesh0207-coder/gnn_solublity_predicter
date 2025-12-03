@@ -6,7 +6,7 @@ from torch_geometric.data import Data
 from rdkit import Chem
 import numpy as np
 
-# ------------------- Model Definition (exact same as training) -------------------
+# ------------------- Model Definition -------------------
 class GCN(torch.nn.Module):
     def __init__(self):
         super().__init__()
@@ -27,6 +27,7 @@ class GCN(torch.nn.Module):
         h = torch.cat([gmp(h, batch), gap(h, batch)], dim=1)
         return self.out(h)
 
+
 # ------------------- Load Model -------------------
 @st.cache_resource
 def load_model():
@@ -35,15 +36,17 @@ def load_model():
     model.eval()
     return model
 
+
 model = load_model()
 
-# ------------------- SMILES → Graph -------------------
+
+# ------------------- SMILES → Graph Conversion -------------------
 def smiles_to_graph(smiles):
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return None
 
-    # Node features (same as MoleculeNet ESOL)
+    # Node features (ESOL format)
     x = []
     for atom in mol.GetAtoms():
         x.append([
@@ -51,10 +54,10 @@ def smiles_to_graph(smiles):
             atom.GetDegree(),
             atom.GetFormalCharge(),
             atom.GetTotalNumHs(),
-            atom.IsInRing(),
-            atom.GetHybridization(),
-            atom.GetIsAromatic(),
-            atom.GetMass() / 100,  # scaled
+            int(atom.IsInRing()),
+            int(atom.GetHybridization()),
+            int(atom.GetIsAromatic()),
+            atom.GetMass() / 100,
             1.0
         ])
     x = torch.tensor(x, dtype=torch.float)
@@ -64,38 +67,52 @@ def smiles_to_graph(smiles):
     for bond in mol.GetBonds():
         i = bond.GetBeginAtomIdx()
         j = bond.GetEndAtomIdx()
-        edge_indices += [[i, j], [j, i]]
+        edge_indices += [[i, j], [j, i]]  # undirected graph
     edge_index = torch.tensor(edge_indices, dtype=torch.long).t().contiguous()
 
-    return Data(x=x, edge_index=edge_index)
+    # Batch vector (all nodes belong to graph 0)
+    batch = torch.zeros(x.shape[0], dtype=torch.long)
 
-# ------------------- Streamlit UI -------------------
+    return Data(x=x, edge_index=edge_index, batch=batch)
+
+
+# ------------------- Streamlit App -------------------
 st.set_page_config(page_title="GNN Solubility Predictor", layout="centered")
-st.title("Molecular Solubility Predictor (logS)")
-st.markdown("**Graph Neural Network trained on ESOL dataset** • RMSE ≈ 0.70–0.90")
+st.title("🧪 Molecular Solubility Predictor (logS)")
+st.markdown("Graph Neural Network (GCN) trained on **ESOL** dataset to predict aqueous solubility.")
 
-smiles = st.text_input("Enter SMILES string", value="CCO", help="Example: Ethanol = CCO, Benzene = c1ccccc1")
+
+smiles = st.text_input(
+    "Enter SMILES string:",
+    value="CCO",
+    help="Examples: Ethanol = CCO, Benzene = c1ccccc1"
+)
 
 if st.button("Predict Solubility", type="primary"):
-    with st.spinner("Converting molecule & running GNN..."):
+    with st.spinner("Processing molecule & running GNN..."):
         graph = smiles_to_graph(smiles)
         if graph is None:
-            st.error("Invalid SMILES string!")
+            st.error("❌ Invalid SMILES string!")
         else:
             with torch.no_grad():
-                pred = model(graph.x, graph.edge_index, torch.zeros(1, dtype=torch.long))
+                pred = model(graph.x, graph.edge_index, graph.batch)
             logS = pred.item()
+
             st.success(f"**Predicted logS = {logS:.3f}**")
+
+            # Interpretations
             if logS > 0:
-                st.info("Highly soluble")
+                st.info("💧 Highly soluble")
             elif logS > -2:
-                st.info("Moderately soluble")
+                st.info("🧪 Moderately soluble")
             elif logS > -4:
-                st.warning("Poorly soluble")
+                st.warning("⚠️ Poorly soluble")
             else:
-                st.error("Very poorly soluble / insoluble")
-            
-            st.markdown(f"**Interpretation**: logS = {logS:.3f} → aqueous solubility ≈ {10**logS:.2e} mol/L")
+                st.error("❗ Very poorly soluble / insoluble")
+
+            st.markdown(
+                f"**Approx. solubility:** {10**logS:.2e} mol/L"
+            )
 
 st.markdown("---")
-st.caption("Built by Vignesh • GNN from scratch using PyTorch Geometric • Model trained on ESOL dataset")
+st.caption("Built by Vignesh • GNN using PyTorch Geometric • Trained on ESOL dataset")
